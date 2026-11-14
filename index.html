@@ -1,0 +1,2154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふりこじっけんラボ（10おうふく計測対応版）</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: 小学生にも読みやすい丸ゴシックフォント -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
+    <style>
+        /* 全体のフォントとやさしい理科室ノート風背景 */
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #f3f9f9;
+            background-image:
+                radial-gradient(#d5ebeb 1.5px, transparent 1.5px),
+                radial-gradient(#e6f4f4 1.5px, #f3f9f9 1.5px);
+            background-size: 32px 32px;
+            background-position: 0 0, 16px 16px;
+            color: #1e293b;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* 子どもが操作しやすい大きなカスタムスライダー */
+        input[type="range"].lab-slider {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 14px;
+            border-radius: 9999px;
+            outline: none;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        input[type="range"].lab-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 4px solid currentColor;
+            box-shadow: 0 3px 8px rgba(15, 23, 42, 0.22);
+            cursor: grab;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+
+        input[type="range"].lab-slider::-webkit-slider-thumb:active {
+            cursor: grabbing;
+            transform: scale(1.15);
+            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.32);
+        }
+
+        input[type="range"].lab-slider::-moz-range-thumb {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #ffffff;
+            border: 4px solid currentColor;
+            box-shadow: 0 3px 8px rgba(15, 23, 42, 0.22);
+            cursor: grab;
+            transition: transform 0.12s ease;
+        }
+
+        /* 数値入力ボックスのスピナーをすっきりさせる */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+
+        /* 立体感のあるぷっくりボタン */
+        .btn-3d {
+            transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.12s ease;
+        }
+        .btn-3d:active:not(:disabled) {
+            transform: translateY(3px);
+        }
+        .btn-3d:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* 10往復ランプの点灯アニメーション */
+        @keyframes lampPop {
+            0% { transform: scale(0.75); }
+            50% { transform: scale(1.28); }
+            100% { transform: scale(1); }
+        }
+        .lamp-active {
+            animation: lampPop 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        /* 10往復完了時のキラッと光る枠 */
+        @keyframes completePulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); }
+            50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+        }
+        .result-complete-glow {
+            animation: completePulse 1.4s ease-in-out 2;
+        }
+
+        /* 往復バッジのポップアップアニメーション */
+        @keyframes popBadge {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, 10px) scale(0.6) rotate(-4deg);
+            }
+            20% {
+                opacity: 1;
+                transform: translate(-50%, -6px) scale(1.12) rotate(2deg);
+            }
+            35% {
+                transform: translate(-50%, 0px) scale(1) rotate(0deg);
+            }
+            80% {
+                opacity: 1;
+                transform: translate(-50%, -4px) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -18px) scale(0.9);
+            }
+        }
+        .animate-pop-badge {
+            animation: popBadge 1.15s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        /* キャンバスのタッチ操作でスクロールが誤作動しないようにする */
+        #pendulumCanvas {
+            touch-action: none;
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* テーブル行のフェードイン */
+        @keyframes slideInRow {
+            from {
+                opacity: 0;
+                transform: translateY(-6px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .row-enter {
+            animation: slideInRow 0.25s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- ヘッダー（理科実験室の看板） -->
+    <header class="bg-white/95 backdrop-blur border-b-4 border-teal-200 shadow-sm sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 sm:py-3 flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 sm:gap-3">
+                <!-- ふりこアイコン SVG -->
+                <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center shadow-md shrink-0">
+                    <svg class="w-7 h-7 sm:w-8 sm:h-8 text-white" viewBox="0 0 36 36" fill="none">
+                        <rect x="6" y="4" width="24" height="4" rx="2" fill="currentColor"/>
+                        <line x1="18" y1="8" x2="26" y2="25" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                        <circle cx="26" cy="26" r="5" fill="#FDE047" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h1 class="text-base sm:text-2xl font-extrabold tracking-tight text-teal-800 leading-tight">
+                            ふりこじっけんラボ
+                        </h1>
+                        <span class="text-[11px] sm:text-xs font-extrabold bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full">
+                            10おうふく けいそく版
+                        </span>
+                    </div>
+                    <p class="text-xs sm:text-sm font-bold text-slate-500">
+                        10おうふくする じかんと 1おうふくの じかんを くらべよう！
+                    </p>
+                </div>
+            </div>
+
+            <!-- 効果音 ON / OFF ボタン -->
+            <button id="soundToggleBtn" type="button"
+                class="btn-3d flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-2xl font-extrabold text-xs sm:text-sm bg-amber-100 text-amber-800 border-2 border-amber-300 shadow-[0_3px_0_#fcd34d] hover:bg-amber-200 shrink-0"
+                aria-label="こうかおんの きりかえ">
+                <span id="soundIcon" class="text-base sm:text-lg">🔊</span>
+                <span id="soundLabel">おと ON</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5 sm:space-y-6">
+
+        <!-- やさしいメッセージ通知バナー（alertの代わり） -->
+        <div id="toastBanner" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-[92vw] sm:max-w-md bg-slate-800/95 text-white px-5 py-3 rounded-2xl shadow-xl border-2 border-teal-300 flex items-center gap-2.5 text-sm sm:text-base font-bold transition-all">
+            <span id="toastEmoji" class="text-xl">💡</span>
+            <span id="toastText">メッセージ</span>
+        </div>
+
+        <!-- 上段：実験ステージ（左7列） ＋ 計測設定＆条件スライダー（右5列） -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-start">
+
+            <!-- 左カラム（7列）：10往復計測モニター ＋ 10往復ランプ ＋ キャンバス ＋ 操作ボタン -->
+            <section class="lg:col-span-7 bg-white rounded-3xl border-4 border-teal-100 shadow-lg p-3.5 sm:p-5 space-y-3.5 sm:space-y-4">
+
+                <!-- 10往復のじかん ＆ 1往復のじかん（÷10） メイン結果ボード -->
+                <div id="resultBoardCard" class="bg-gradient-to-r from-sky-50 via-teal-50 to-emerald-50 rounded-2xl p-3.5 sm:p-4 border-2 border-teal-200 space-y-3">
+                    <!-- ステータスヘッダー -->
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span id="primaryTimeLabel" class="inline-flex items-center gap-1 text-xs sm:text-sm font-extrabold text-teal-900 bg-white px-2.5 py-0.5 rounded-full border border-teal-200 shadow-sm">
+                                ⏱ 10おうふくの じかん
+                            </span>
+                            <span id="simStatusBadge" class="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800">
+                                じゅんび OK
+                            </span>
+                        </div>
+                        <span id="speedIndicatorBadge" class="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
+                            スピード：ふつう（1ばい）
+                        </span>
+                    </div>
+
+                    <!-- 2カラム数値表示：左「10おうふくの じかん」 / 右「1おうふくの じかん (÷10)」 -->
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5 sm:gap-3 items-stretch">
+                        <!-- 10往復の時間（メイン大きく表示） -->
+                        <div class="sm:col-span-7 bg-white/95 rounded-2xl border-2 border-teal-200 px-3.5 py-2.5 flex flex-col justify-center shadow-sm">
+                            <div id="mainTimeCaption" class="text-xs font-extrabold text-teal-700">
+                                10おうふく 合計
+                            </div>
+                            <div class="flex items-baseline gap-1.5 mt-0.5">
+                                <span id="tenSwingTimeDisplay" class="text-3xl sm:text-5xl font-extrabold tracking-tight text-teal-700 tabular-nums">
+                                    0.0
+                                </span>
+                                <span class="text-base sm:text-xl font-extrabold text-teal-800">びょう</span>
+                            </div>
+                        </div>
+
+                        <!-- 1往復の時間（10往復確定後に表示） -->
+                        <div class="sm:col-span-5 bg-amber-50/95 rounded-2xl border-2 border-amber-300 px-3.5 py-2.5 flex flex-col justify-center shadow-sm">
+                            <div id="perOneTimeCaption" class="text-xs font-extrabold text-amber-800 flex items-center gap-1">
+                                <span>1おうふくの じかん</span>
+                                <span class="bg-amber-200 text-amber-900 text-[10px] px-1.5 py-0.5 rounded-md">÷10</span>
+                            </div>
+                            <div class="flex items-baseline gap-1 mt-0.5">
+                                <span id="oneSwingTimeDisplay" class="text-2xl sm:text-4xl font-extrabold tracking-tight text-amber-400 tabular-nums">
+                                    --.-
+                                </span>
+                                <span class="text-sm sm:text-base font-extrabold text-amber-800">びょう</span>
+                            </div>
+                            <div id="perOneRoundingNote" class="text-[10px] sm:text-[11px] font-bold text-amber-800/90 leading-tight mt-0.5">
+                                10おうふくの じかんが でると 表示されます
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 10往復カウントインジケーター（1〜10のランプ） -->
+                    <div id="tenLampSection" class="bg-white/90 rounded-2xl border border-teal-200 p-2.5 sm:p-3 space-y-1.5">
+                        <div class="flex items-center justify-between text-xs font-extrabold">
+                            <span class="text-slate-600 flex items-center gap-1">
+                                <span>🌟</span>
+                                <span id="lampGuideTitle">10おうふく カウントランプ</span>
+                            </span>
+                            <span id="swingCountText" class="text-teal-700">
+                                いま <span id="swingCountDisplay" class="text-base sm:text-lg text-amber-600 font-extrabold">0</span> / 10 かい
+                            </span>
+                        </div>
+                        <!-- 1〜10の丸いランプ -->
+                        <div id="lampContainer" class="grid grid-cols-10 gap-1 sm:gap-1.5 pt-0.5" aria-label="10おうふく カウントランプ">
+                            <!-- JSで1〜10のランプを生成 -->
+                        </div>
+                    </div>
+
+                    <!-- ガイダンスメッセージ -->
+                    <p id="liveTimerSub" class="text-xs sm:text-sm font-bold text-slate-600 flex items-center gap-1.5">
+                        <span>👉</span>
+                        <span>「▶ てを はなす」をおすと 10おうふくの じかんを 自動ではかるよ！</span>
+                    </p>
+                </div>
+
+                <!-- 0cm・0°のときのやさしい案内バナー -->
+                <div id="zeroParamAlert" class="hidden bg-rose-50 border-2 border-rose-300 text-rose-800 rounded-2xl px-4 py-2.5 text-xs sm:text-sm font-extrabold flex items-center gap-2">
+                    <span class="text-lg">📢</span>
+                    <span id="zeroParamAlertText">ながさを 1cm いじょうに してね</span>
+                </div>
+
+                <!-- ふりこシミュレーション キャンバス枠 -->
+                <div id="canvasContainer" class="relative w-full h-[360px] sm:h-[420px] md:h-[450px] rounded-2xl overflow-hidden border-2 border-slate-200 bg-[#fffdf8] shadow-inner">
+                    <canvas id="pendulumCanvas"></canvas>
+
+                    <!-- 「◯おうふく！」ポップアップ演出バッジ -->
+                    <div id="oneSwingBadge" class="hidden pointer-events-none absolute top-14 left-1/2 -translate-x-1/2 z-20">
+                        <div id="oneSwingBadgeInner" class="bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 text-amber-950 font-extrabold text-base sm:text-xl px-5 py-2 rounded-full border-4 border-white shadow-lg flex items-center gap-1.5 whitespace-nowrap">
+                            <span>✨</span>
+                            <span id="oneSwingBadgeText">1おうふく！</span>
+                            <span>✨</span>
+                        </div>
+                    </div>
+
+                    <!-- キャンバス左下の操作ガイドチップ -->
+                    <div class="pointer-events-none absolute bottom-2.5 left-2.5 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm text-[11px] sm:text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                        <span>👆</span>
+                        <span>おもりを ドラッグしても ながさや かくどを かえられるよ！</span>
+                    </div>
+                </div>
+
+                <!-- 実験操作ボタン（てを はなす / ストップ / リセット / ノートに きろく） -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-0.5">
+                    <button id="startBtn" type="button"
+                        class="btn-3d py-3 sm:py-3.5 px-2.5 rounded-2xl font-extrabold text-sm sm:text-base text-white bg-emerald-500 hover:bg-emerald-600 border-2 border-emerald-600 shadow-[0_4px_0_#059669] flex items-center justify-center gap-1.5">
+                        <span>▶</span>
+                        <span>てを はなす</span>
+                    </button>
+
+                    <button id="stopBtn" type="button"
+                        class="btn-3d py-3 sm:py-3.5 px-2.5 rounded-2xl font-extrabold text-sm sm:text-base text-amber-950 bg-amber-400 hover:bg-amber-500 border-2 border-amber-500 shadow-[0_4px_0_#d97706] flex items-center justify-center gap-1.5">
+                        <span>⏹</span>
+                        <span id="stopBtnLabel">とめる</span>
+                    </button>
+
+                    <button id="resetBtn" type="button"
+                        class="btn-3d py-3 sm:py-3.5 px-2.5 rounded-2xl font-extrabold text-sm sm:text-base text-slate-700 bg-slate-100 hover:bg-slate-200 border-2 border-slate-300 shadow-[0_4px_0_#cbd5e1] flex items-center justify-center gap-1.5">
+                        <span>↺</span>
+                        <span>リセット</span>
+                    </button>
+
+                    <button id="recordBtn" type="button"
+                        class="btn-3d py-3 sm:py-3.5 px-2.5 rounded-2xl font-extrabold text-sm sm:text-base text-white bg-indigo-500 hover:bg-indigo-600 border-2 border-indigo-600 shadow-[0_4px_0_#4338ca] flex items-center justify-center gap-1.5">
+                        <span>📝</span>
+                        <span>ノートに きろく</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 右カラム（5列）：計測モード＆スピード切替 ＋ 3つの条件スライダー -->
+            <div class="lg:col-span-5 space-y-5">
+
+                <!-- 計測モード切替 ＆ はや送り（スピード）切替カード -->
+                <section class="bg-white rounded-3xl border-4 border-emerald-100 shadow-lg p-4 sm:p-5 space-y-4">
+                    <!-- 1. 計測モード切替（3つのモード） -->
+                    <div class="space-y-2">
+                        <h2 class="text-sm sm:text-base font-extrabold text-slate-800 flex items-center gap-1.5">
+                            <span class="text-lg">⏱️</span>
+                            <span>はかりかた（けいそくモード）</span>
+                        </h2>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2" role="group" aria-label="けいそくモード">
+                            <button type="button" data-mode="auto10"
+                                class="mode-btn btn-3d py-2.5 px-2.5 rounded-2xl font-extrabold text-xs sm:text-sm border-2 text-center flex flex-col items-center justify-center gap-0.5 bg-teal-500 text-white border-teal-600 shadow-[0_3px_0_#0f766e]">
+                                <span>10おうふく じどう</span>
+                                <span class="text-[10px] font-bold opacity-90">おすすめ！ピタッと停止</span>
+                            </button>
+
+                            <button type="button" data-mode="manual10"
+                                class="mode-btn btn-3d py-2.5 px-2.5 rounded-2xl font-extrabold text-xs sm:text-sm border-2 text-center flex flex-col items-center justify-center gap-0.5 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 shadow-[0_3px_0_#cbd5e1]">
+                                <span>じぶんで ストップ</span>
+                                <span class="text-[10px] font-bold text-slate-500">10かい数えて止める</span>
+                            </button>
+
+                            <button type="button" data-mode="continuous"
+                                class="mode-btn btn-3d py-2.5 px-2.5 rounded-2xl font-extrabold text-xs sm:text-sm border-2 text-center flex flex-col items-center justify-center gap-0.5 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 shadow-[0_3px_0_#cbd5e1]">
+                                <span>れんぞく</span>
+                                <span class="text-[10px] font-bold text-slate-500">ずっと うごく</span>
+                            </button>
+                        </div>
+
+                        <p id="modeDescriptionText" class="text-xs font-bold text-teal-800 bg-teal-50/80 border border-teal-200 rounded-xl px-3 py-2">
+                            ✨ 10おうふくすると 自動でタイマーがとまり、10おうふくと 1おうふくの じかんが わかるよ！
+                        </p>
+                    </div>
+
+                    <!-- 2. はや送り（スピード）切替 -->
+                    <div class="space-y-2 pt-1 border-t-2 border-slate-100">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm sm:text-base font-extrabold text-slate-800 flex items-center gap-1.5">
+                                <span class="text-lg">⏩</span>
+                                <span>はや送り（スピード）</span>
+                            </span>
+                            <span class="text-[11px] font-bold text-slate-500">長いふりこにべんり！</span>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2" role="group" aria-label="はや送りスピード">
+                            <button type="button" data-speed="1"
+                                class="speed-btn btn-3d py-2 px-2 rounded-xl font-extrabold text-xs sm:text-sm border-2 bg-indigo-500 text-white border-indigo-600 shadow-[0_3px_0_#4338ca]">
+                                ふつう (1ばい)
+                            </button>
+                            <button type="button" data-speed="2"
+                                class="speed-btn btn-3d py-2 px-2 rounded-xl font-extrabold text-xs sm:text-sm border-2 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 shadow-[0_3px_0_#cbd5e1]">
+                                2ばいそく
+                            </button>
+                            <button type="button" data-speed="4"
+                                class="speed-btn btn-3d py-2 px-2 rounded-xl font-extrabold text-xs sm:text-sm border-2 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 shadow-[0_3px_0_#cbd5e1]">
+                                4ばいそく
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3つの条件コントロールカード -->
+                <section class="bg-white rounded-3xl border-4 border-sky-100 shadow-lg p-4 sm:p-5 space-y-4">
+                    <h2 class="text-base sm:text-lg font-extrabold text-slate-800 flex items-center gap-2">
+                        <span class="text-xl">🎛️</span>
+                        <span>ふりこの じょうけんを かえよう</span>
+                    </h2>
+
+                    <!-- 1. ふりこの長さ（0〜400cm、初期値100cm） -->
+                    <div class="bg-sky-50/90 rounded-2xl p-3.5 sm:p-4 border-2 border-sky-200 space-y-2.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <label for="lengthSlider" class="font-extrabold text-sm sm:text-base text-sky-900 flex items-center gap-1.5">
+                                <span class="w-6 h-6 rounded-lg bg-sky-500 text-white text-xs flex items-center justify-center font-extrabold">1</span>
+                                <span>ふりこの ながさ</span>
+                            </label>
+                            <div class="bg-white px-2.5 py-1 rounded-xl border-2 border-sky-300 shadow-sm flex items-baseline gap-0.5">
+                                <input id="lengthInput" type="number" min="0" max="400" step="1" value="100"
+                                    aria-label="ふりこの ながさ（0から400センチメートル）"
+                                    class="w-14 sm:w-16 text-right bg-transparent text-xl sm:text-2xl font-extrabold text-sky-700 tabular-nums focus:outline-none focus:ring-2 focus:ring-sky-400 rounded">
+                                <span class="text-xs sm:text-sm font-extrabold text-sky-800">cm</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2.5">
+                            <button type="button" data-param="length" data-delta="-1"
+                                class="step-btn btn-3d w-11 h-11 rounded-xl bg-white hover:bg-sky-100 text-sky-700 font-extrabold text-xl border-2 border-sky-300 shadow-[0_3px_0_#7dd3fc] shrink-0 flex items-center justify-center"
+                                aria-label="ふりこの ながさを 1cm みじかくする">－</button>
+
+                            <input id="lengthSlider" type="range" min="0" max="400" step="1" value="100"
+                                class="lab-slider bg-sky-200 text-sky-500">
+
+                            <button type="button" data-param="length" data-delta="1"
+                                class="step-btn btn-3d w-11 h-11 rounded-xl bg-white hover:bg-sky-100 text-sky-700 font-extrabold text-xl border-2 border-sky-300 shadow-[0_3px_0_#7dd3fc] shrink-0 flex items-center justify-center"
+                                aria-label="ふりこの ながさを 1cm ながくする">＋</button>
+                        </div>
+
+                        <!-- プリセットボタン：25cm / 50cm / 100cm / 200cm / 400cm -->
+                        <div class="flex flex-wrap items-center justify-between gap-1 text-[11px] font-extrabold text-sky-800 pt-0.5">
+                            <button type="button" data-preset-length="25" class="preset-btn px-2 py-1 rounded-lg bg-white border border-sky-300 hover:bg-sky-100">25cm</button>
+                            <button type="button" data-preset-length="50" class="preset-btn px-2 py-1 rounded-lg bg-white border border-sky-300 hover:bg-sky-100">50cm</button>
+                            <button type="button" data-preset-length="100" class="preset-btn px-2 py-1 rounded-lg bg-white border border-sky-300 hover:bg-sky-100">100cm</button>
+                            <button type="button" data-preset-length="200" class="preset-btn px-2 py-1 rounded-lg bg-white border border-sky-300 hover:bg-sky-100">200cm</button>
+                            <button type="button" data-preset-length="400" class="preset-btn px-2 py-1 rounded-lg bg-white border border-sky-300 hover:bg-sky-100">400cm</button>
+                        </div>
+                    </div>
+
+                    <!-- 2. おもりの重さ（0〜100g、初期値50g） -->
+                    <div class="bg-amber-50/90 rounded-2xl p-3.5 sm:p-4 border-2 border-amber-200 space-y-2.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <label for="weightSlider" class="font-extrabold text-sm sm:text-base text-amber-900 flex items-center gap-1.5">
+                                <span class="w-6 h-6 rounded-lg bg-amber-500 text-white text-xs flex items-center justify-center font-extrabold">2</span>
+                                <span>おもりの おもさ</span>
+                            </label>
+                            <div class="bg-white px-2.5 py-1 rounded-xl border-2 border-amber-300 shadow-sm flex items-baseline gap-0.5">
+                                <input id="weightInput" type="number" min="0" max="100" step="1" value="50"
+                                    aria-label="おもりの おもさ（0から100グラム）"
+                                    class="w-12 sm:w-14 text-right bg-transparent text-xl sm:text-2xl font-extrabold text-amber-700 tabular-nums focus:outline-none focus:ring-2 focus:ring-amber-400 rounded">
+                                <span class="text-xs sm:text-sm font-extrabold text-amber-800">g</span>
+                                <span id="weightZeroHint" class="hidden text-[11px] font-extrabold text-slate-500 ml-1">(クリップ)</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2.5">
+                            <button type="button" data-param="weight" data-delta="-1"
+                                class="step-btn btn-3d w-11 h-11 rounded-xl bg-white hover:bg-amber-100 text-amber-700 font-extrabold text-xl border-2 border-amber-300 shadow-[0_3px_0_#fcd34d] shrink-0 flex items-center justify-center"
+                                aria-label="おもりの おもさを 1g かるくする">－</button>
+
+                            <input id="weightSlider" type="range" min="0" max="100" step="1" value="50"
+                                class="lab-slider bg-amber-200 text-amber-500">
+
+                            <button type="button" data-param="weight" data-delta="1"
+                                class="step-btn btn-3d w-11 h-11 rounded-xl bg-white hover:bg-amber-100 text-amber-700 font-extrabold text-xl border-2 border-amber-300 shadow-[0_3px_0_#fcd34d] shrink-0 flex items-center justify-center"
+                                aria-label="おもりの おもさを 1g おもくする">＋</button>
+                        </div>
+
+                        <!-- プリセットボタン：0g / 20g / 50g / 100g -->
+                        <div class="flex flex-wrap items-center justify-between gap-1 text-[11px] font-extrabold text-amber-800 pt-0.5">
+                            <span class="text-amber-700">0g〜100g：</span>
+                            <div class="flex gap-1.5 flex-wrap">
+                                <button type="button" data-preset-weight="0" class="preset-btn px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100">0g</button>
+                                <button type="button" data-preset-weight="20" class="preset-btn px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100">20g</button>
+                                <button type="button" data-preset-weight="50" class="preset-btn px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100">50g</button>
+                                <button type="button" data-preset-weight="100" class="preset-btn px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100">100g</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3. ふれはば（角度：0°〜90°、初期値30°） -->
+                    <div class="bg-rose-50/90 rounded-2xl p-3.5 sm:p-4 border-2 border-rose-200 space-y-2.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <label for="angleSlider" class="font-extrabold text-sm sm:text-base text-rose-900 flex items-center gap-1.5">
+                                <span class="w-6 h-6 rounded-lg bg-rose-500 text-white text-xs flex items-center justify-center font-extrabold">3</span>
+                                <span>ふれはば（かくど）</span>
+                            </label>
+                            <div class="bg-white px-2.5 py-1 rounded-xl border-2 border-rose-300 shadow-sm flex items-baseline gap-0.5">
+                                <input id="angleInput" type="number" min="0" max="90" step="1" value="30"
+                                    aria-label="ふれはば かくど（0から90ど）"
+                                    class="w-12 sm:w-14 text-right bg-transparent text-xl sm:text-2xl font-extrabold text-rose-700 tabular-nums focus:outline-none focus:ring-2 focus:ring-rose-400 rounded">
+                                <span class="text-xs sm:text-sm font-extrabold text-rose-800">°</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2.5">
+                            <button type="button" data-param="angle" data-delta="-1"
+                                class="step-btn btn-3d w-11 h-11 rounded-xl bg-white hover:bg-rose-100 text-rose-700 font-extrabold text-xl border-2 border-rose-300 shadow-[0_3px_0_#fda4af] shrink-0 flex items-center justify-center"
+                                aria-label="ふれはばを 1ど ちいさくする">－</button>
+
+                            <input id="angleSlider" type="range" min="0" max="90" step="1" value="30"
+                                class="lab-slider bg-rose-200 text-rose-500">
+
+                            <button type="button" data-param="angle" data-delta="1"
+                                class="step-btn btn-3d w-11 h-11 rounded-xl bg-white hover:bg-rose-100 text-rose-700 font-extrabold text-xl border-2 border-rose-300 shadow-[0_3px_0_#fda4af] shrink-0 flex items-center justify-center"
+                                aria-label="ふれはばを 1ど おおきくする">＋</button>
+                        </div>
+
+                        <!-- プリセットボタン：10° / 30° / 60° / 90° -->
+                        <div class="flex flex-wrap items-center justify-between gap-1 text-[11px] font-extrabold text-rose-800 pt-0.5">
+                            <span class="text-rose-700">0°〜90°：</span>
+                            <div class="flex gap-1.5 flex-wrap">
+                                <button type="button" data-preset-angle="10" class="preset-btn px-2.5 py-1 rounded-lg bg-white border border-rose-300 hover:bg-rose-100">10°</button>
+                                <button type="button" data-preset-angle="30" class="preset-btn px-2.5 py-1 rounded-lg bg-white border border-rose-300 hover:bg-rose-100">30°</button>
+                                <button type="button" data-preset-angle="60" class="preset-btn px-2.5 py-1 rounded-lg bg-white border border-rose-300 hover:bg-rose-100">60°</button>
+                                <button type="button" data-preset-angle="90" class="preset-btn px-2.5 py-1 rounded-lg bg-white border border-rose-300 hover:bg-rose-100">90°</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- 下段：じっけんノート（比較表）と気づきサポート -->
+        <section class="bg-white rounded-3xl border-4 border-indigo-100 shadow-lg p-4 sm:p-6 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-lg sm:text-xl font-extrabold text-indigo-950 flex items-center gap-2">
+                        <span class="text-2xl">📓</span>
+                        <span>じっけんノート（10おうふく くらべ表）</span>
+                    </h2>
+                    <p class="text-xs sm:text-sm font-bold text-slate-500 mt-0.5">
+                        10おうふく はかったら「📝 ノートに きろく」ボタンで 表に ならべてみよう！
+                    </p>
+                </div>
+
+                <!-- ぜんぶ消す（2段階確認ボタンでalertを使わない安全設計） -->
+                <button id="clearRecordsBtn" type="button"
+                    class="hidden btn-3d px-3.5 py-2 rounded-xl font-extrabold text-xs sm:text-sm bg-rose-50 hover:bg-rose-100 text-rose-700 border-2 border-rose-200 shadow-[0_2px_0_#fecdd3]">
+                    🗑️ ノートを ぜんぶ けす
+                </button>
+            </div>
+
+            <!-- 比較テーブル -->
+            <div class="overflow-x-auto rounded-2xl border-2 border-indigo-100">
+                <table class="w-full text-left border-collapse min-w-[660px]">
+                    <thead>
+                        <tr class="bg-indigo-50 text-indigo-950 text-xs sm:text-sm font-extrabold border-b-2 border-indigo-100">
+                            <th class="py-3 px-3 text-center w-16">かいすう</th>
+                            <th class="py-3 px-3 text-sky-800">📏 ながさ (cm)</th>
+                            <th class="py-3 px-3 text-amber-800">⚖️ おもさ (g)</th>
+                            <th class="py-3 px-3 text-rose-800">📐 ふれはば (°)</th>
+                            <th class="py-3 px-3 text-teal-800">⏱ 10おうふくの じかん (秒)</th>
+                            <th class="py-3 px-3 text-amber-900">✨ 1おうふくの じかん (秒)</th>
+                            <th class="py-3 px-3 text-center w-16">さくじょ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recordsBody" class="divide-y divide-slate-100 text-sm sm:text-base font-bold">
+                        <!-- 初期の空状態メッセージ -->
+                        <tr id="emptyRecordsRow">
+                            <td colspan="7" class="py-8 px-4 text-center text-slate-400">
+                                <div class="text-3xl mb-1.5">🔬</div>
+                                <div class="text-sm sm:text-base font-extrabold text-slate-500">まだ きろくが ありません</div>
+                                <div class="text-xs sm:text-sm mt-1">10おうふく はかって、「📝 ノートに きろく」をおしてみよう！</div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 気づきサポート：じっけんの コツ -->
+            <div class="bg-amber-50/90 border-2 border-amber-200 rounded-2xl p-3.5 sm:p-4 flex items-start gap-3">
+                <span class="text-2xl shrink-0">💡</span>
+                <div class="text-xs sm:text-sm font-bold text-amber-950 space-y-1">
+                    <div class="font-extrabold text-amber-900">じっけんの コツ！</div>
+                    <p id="discoveryHintText">
+                        <span class="underline decoration-amber-400 decoration-2 font-extrabold">1つの じょうけんだけ</span> 変えて 10おうふく くらべてみよう！<br>
+                        （れい：ながさと おもさは そのままにして、「ふれはば」だけ 10° → 30° → 60° と かえてみよう！）
+                    </p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- フッター -->
+    <footer class="text-center py-4 text-xs font-bold text-slate-400">
+        ふりこじっけんラボ（10おうふく計測対応版） ｜ しょうがっこう 5ねんせい りか「ふりこの うごき」
+    </footer>
+
+    <script>
+        /**
+         * ふりこじっけんラボ（10おうふく計測対応版）
+         * ・4次ルンゲ＝クッタ法（RK4）による高精度物理シミュレーション（g = 9.8 m/s²、1ms刻み）
+         * ・3つの条件（長さ 0〜400cm / 重さ 0〜100g / ふれはば 0〜90°）を常に操作可能
+         * ・スライダー・1きざみボタン（長押し対応）・数値直接入力・プリセット・キャンバスおもりドラッグ完全同期
+         * ・10往復自動計測・小数第2位を四捨五入した小数第1位表示・10往復確定後の1往復時間表示
+         */
+        (() => {
+            'use strict';
+
+            // ==========================================
+            // 1. 実験パラメータとシミュレーション状態
+            // ==========================================
+            const GRAVITY = 9.8; // 重力加速度 (m/s²)
+
+            /**
+             * 小数第2位を四捨五入して小数第1位までの数値を返す（浮動小数点誤差対策付き）
+             * @param {number} val
+             * @returns {number}
+             */
+            function roundToOneDecimal(val) {
+                if (!Number.isFinite(val) || val <= 0) return 0;
+                return Math.round(val * 10 + Number.EPSILON) / 10;
+            }
+
+            /**
+             * 小数第2位を四捨五入して小数第1位までの文字列（"XX.X"）で返す
+             * @param {number} val
+             * @returns {string}
+             */
+            function formatOneDecimal(val) {
+                return roundToOneDecimal(val).toFixed(1);
+            }
+
+            /**
+             * 10往復の計測時間から、小数第1位まで揃えた10往復時間と1往復時間を算出する
+             * 手順：10往復時間を小数第2位で四捨五入(t10_1dec) → 10で割る → 小数第2位で四捨五入(t1_1dec)
+             * @param {number} rawTenSec
+             * @returns {{ tenSec: number, oneSec: number }}
+             */
+            function calcOneSwingFromTen(rawTenSec) {
+                const t10_1dec = roundToOneDecimal(rawTenSec);
+                const t1_1dec = roundToOneDecimal(t10_1dec / 10);
+                return { tenSec: t10_1dec, oneSec: t1_1dec };
+            }
+
+            /**
+             * 数値を指定範囲の整数にクランプする
+             */
+            function clampInt(val, min, max, fallback) {
+                const num = Number(val);
+                if (!Number.isFinite(num)) return fallback;
+                return Math.min(max, Math.max(min, Math.round(num)));
+            }
+
+            const state = {
+                lengthCm: 100,          // ふりこの長さ: 0 ~ 400 cm (初期値 100cm)
+                weightG: 50,            // おもりの重さ: 0 ~ 100 g (初期値 50g)
+                angleDeg: 30,           // ふれはば（角度）: 0 ~ 90 ° (初期値 30°)
+                releaseSign: 1,         // 放す側: +1 (右から) または -1 (左から)
+
+                // 物理状態
+                theta: (30 * Math.PI) / 180, // 現在の角度（ラジアン、真下が0、右が正）
+                omega: 0,                    // 角速度（rad/s）
+                isRunning: false,            // 動作中フラグ
+                isDragging: false,           // キャンバスでおもりをドラッグ中フラグ
+                isCompleted10: false,        // 10往復計測完了フラグ
+
+                // 計測状態
+                measureMode: 'auto10',       // 'auto10' | 'manual10' | 'continuous'
+                speedMultiplier: 1,          // 1 | 2 | 4
+                simTime: 0,                  // ふりこ世界の経過時間（秒）
+                swingStartTime: 0,           // 直近の往復開始時刻（秒）
+                swingCount: 0,               // 完了した往復回数
+                finalTenPeriod: null,        // 確定した10往復時間（小数第1位丸め済）
+                finalOnePeriod: null,        // 確定した1往復時間（小数第1位丸め済）
+                lastSinglePeriod: null,      // れんぞくモード用の直近1往復時間
+
+                // 視覚演出・効果音
+                soundEnabled: true,
+                trail: [],                   // おもりの残像軌跡座標配列
+                sparkles: [],                // キラキラ星パーティクル
+                badgeTimeoutId: null,
+                toastTimeoutId: null,
+                clearConfirmPending: false,
+                clearConfirmTimerId: null,
+
+                // じっけんノート記録一覧
+                records: []
+            };
+
+            // ==========================================
+            // 2. DOM要素の取得
+            // ==========================================
+            const els = {
+                soundToggleBtn: document.getElementById('soundToggleBtn'),
+                soundIcon: document.getElementById('soundIcon'),
+                soundLabel: document.getElementById('soundLabel'),
+
+                toastBanner: document.getElementById('toastBanner'),
+                toastEmoji: document.getElementById('toastEmoji'),
+                toastText: document.getElementById('toastText'),
+
+                resultBoardCard: document.getElementById('resultBoardCard'),
+                primaryTimeLabel: document.getElementById('primaryTimeLabel'),
+                simStatusBadge: document.getElementById('simStatusBadge'),
+                speedIndicatorBadge: document.getElementById('speedIndicatorBadge'),
+                mainTimeCaption: document.getElementById('mainTimeCaption'),
+                perOneTimeCaption: document.getElementById('perOneTimeCaption'),
+                perOneRoundingNote: document.getElementById('perOneRoundingNote'),
+                tenSwingTimeDisplay: document.getElementById('tenSwingTimeDisplay'),
+                oneSwingTimeDisplay: document.getElementById('oneSwingTimeDisplay'),
+
+                lampGuideTitle: document.getElementById('lampGuideTitle'),
+                swingCountDisplay: document.getElementById('swingCountDisplay'),
+                lampContainer: document.getElementById('lampContainer'),
+                liveTimerSub: document.getElementById('liveTimerSub'),
+
+                zeroParamAlert: document.getElementById('zeroParamAlert'),
+                zeroParamAlertText: document.getElementById('zeroParamAlertText'),
+
+                canvasContainer: document.getElementById('canvasContainer'),
+                canvas: document.getElementById('pendulumCanvas'),
+                oneSwingBadge: document.getElementById('oneSwingBadge'),
+                oneSwingBadgeText: document.getElementById('oneSwingBadgeText'),
+
+                startBtn: document.getElementById('startBtn'),
+                stopBtn: document.getElementById('stopBtn'),
+                stopBtnLabel: document.getElementById('stopBtnLabel'),
+                resetBtn: document.getElementById('resetBtn'),
+                recordBtn: document.getElementById('recordBtn'),
+
+                modeBtns: document.querySelectorAll('.mode-btn'),
+                modeDescriptionText: document.getElementById('modeDescriptionText'),
+                speedBtns: document.querySelectorAll('.speed-btn'),
+
+                // 3つの条件コントロール
+                lengthSlider: document.getElementById('lengthSlider'),
+                lengthInput: document.getElementById('lengthInput'),
+                weightSlider: document.getElementById('weightSlider'),
+                weightInput: document.getElementById('weightInput'),
+                weightZeroHint: document.getElementById('weightZeroHint'),
+                angleSlider: document.getElementById('angleSlider'),
+                angleInput: document.getElementById('angleInput'),
+
+                stepBtns: document.querySelectorAll('.step-btn'),
+                presetLengthBtns: document.querySelectorAll('[data-preset-length]'),
+                presetWeightBtns: document.querySelectorAll('[data-preset-weight]'),
+                presetAngleBtns: document.querySelectorAll('[data-preset-angle]'),
+
+                // じっけんノート
+                clearRecordsBtn: document.getElementById('clearRecordsBtn'),
+                recordsBody: document.getElementById('recordsBody'),
+                discoveryHintText: document.getElementById('discoveryHintText')
+            };
+
+            const ctx = els.canvas.getContext('2d');
+            let canvasWidth = 600;
+            let canvasHeight = 400;
+
+            // ==========================================
+            // 3. 効果音（Web Audio API）
+            // ==========================================
+            let audioCtx = null;
+
+            function ensureAudioContext() {
+                if (!state.soundEnabled) return null;
+                if (!audioCtx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) {
+                        audioCtx = new AudioCtx();
+                    }
+                }
+                if (audioCtx && audioCtx.state === 'suspended') {
+                    audioCtx.resume().catch(() => {});
+                }
+                return audioCtx;
+            }
+
+            /**
+             * やさしい理科実験効果音を鳴らす
+             * @param {'click'|'swing'|'fanfare'|'record'} type
+             * @param {number} [swingNum=1]
+             */
+            function playSound(type, swingNum = 1) {
+                if (!state.soundEnabled) return;
+                const ac = ensureAudioContext();
+                if (!ac) return;
+
+                try {
+                    const now = ac.currentTime;
+
+                    if (type === 'click') {
+                        const osc = ac.createOscillator();
+                        const gain = ac.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(520, now);
+                        osc.frequency.exponentialRampToValueAtTime(680, now + 0.055);
+                        gain.gain.setValueAtTime(0.08, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+                        osc.connect(gain);
+                        gain.connect(ac.destination);
+                        osc.start(now);
+                        osc.stop(now + 0.065);
+                    } else if (type === 'swing') {
+                        // 1〜10回に合わせて音階が少しずつのぼる楽しいポン音
+                        const scale = [523.25, 554.37, 587.33, 622.25, 659.25, 698.46, 739.99, 783.99, 830.61, 880.0];
+                        const freq = scale[Math.min(9, Math.max(0, swingNum - 1))];
+                        const osc = ac.createOscillator();
+                        const gain = ac.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, now);
+                        osc.frequency.exponentialRampToValueAtTime(freq * 1.12, now + 0.14);
+                        gain.gain.setValueAtTime(0.14, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+                        osc.connect(gain);
+                        gain.connect(ac.destination);
+                        osc.start(now);
+                        osc.stop(now + 0.19);
+                    } else if (type === 'fanfare') {
+                        // 10往復完了のファンファーレ（ド・ミ・ソ・高いド）
+                        const notes = [523.25, 659.25, 783.99, 1046.5];
+                        notes.forEach((freq, i) => {
+                            const osc = ac.createOscillator();
+                            const gain = ac.createGain();
+                            const t = now + i * 0.09;
+                            const dur = i === notes.length - 1 ? 0.42 : 0.14;
+                            osc.type = 'triangle';
+                            osc.frequency.setValueAtTime(freq, t);
+                            gain.gain.setValueAtTime(0.15, t);
+                            gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+                            osc.connect(gain);
+                            gain.connect(ac.destination);
+                            osc.start(t);
+                            osc.stop(t + dur + 0.02);
+                        });
+                    } else if (type === 'record') {
+                        const notes = [587.33, 880.0];
+                        notes.forEach((freq, i) => {
+                            const osc = ac.createOscillator();
+                            const gain = ac.createGain();
+                            const t = now + i * 0.08;
+                            osc.type = 'sine';
+                            osc.frequency.setValueAtTime(freq, t);
+                            gain.gain.setValueAtTime(0.12, t);
+                            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+                            osc.connect(gain);
+                            gain.connect(ac.destination);
+                            osc.start(t);
+                            osc.stop(t + 0.2);
+                        });
+                    }
+                } catch (e) {
+                    // 音声再生不可環境では無視
+                }
+            }
+
+            els.soundToggleBtn.addEventListener('click', () => {
+                state.soundEnabled = !state.soundEnabled;
+                if (state.soundEnabled) {
+                    els.soundIcon.textContent = '🔊';
+                    els.soundLabel.textContent = 'おと ON';
+                    els.soundToggleBtn.className = 'btn-3d flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-2xl font-extrabold text-xs sm:text-sm bg-amber-100 text-amber-800 border-2 border-amber-300 shadow-[0_3px_0_#fcd34d] hover:bg-amber-200 shrink-0';
+                    playSound('click');
+                } else {
+                    els.soundIcon.textContent = '🔇';
+                    els.soundLabel.textContent = 'おと OFF';
+                    els.soundToggleBtn.className = 'btn-3d flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-2xl font-extrabold text-xs sm:text-sm bg-slate-100 text-slate-500 border-2 border-slate-300 shadow-[0_3px_0_#cbd5e1] hover:bg-slate-200 shrink-0';
+                }
+            });
+
+            // ==========================================
+            // 4. トースト通知バナー（alert不使用）
+            // ==========================================
+            function showToast(emoji, text) {
+                els.toastEmoji.textContent = emoji;
+                els.toastText.textContent = text;
+                els.toastBanner.classList.remove('hidden');
+
+                if (state.toastTimeoutId) {
+                    clearTimeout(state.toastTimeoutId);
+                }
+                state.toastTimeoutId = setTimeout(() => {
+                    els.toastBanner.classList.add('hidden');
+                }, 3000);
+            }
+
+            // ==========================================
+            // 5. 1〜10カウントランプの初期化と更新
+            // ==========================================
+            const lampElements = [];
+
+            function initLampElements() {
+                els.lampContainer.innerHTML = '';
+                lampElements.length = 0;
+
+                for (let i = 1; i <= 10; i++) {
+                    const lamp = document.createElement('div');
+                    lamp.textContent = String(i);
+                    lamp.className = 'h-7 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-extrabold border-2 transition-colors bg-slate-100 text-slate-400 border-slate-200';
+                    els.lampContainer.appendChild(lamp);
+                    lampElements.push(lamp);
+                }
+            }
+
+            function updateLamps(newlyLitIndex = -1) {
+                const count = state.swingCount;
+                els.swingCountDisplay.textContent = String(count);
+
+                lampElements.forEach((lamp, idx) => {
+                    const num = idx + 1;
+                    const isLit = num <= count;
+
+                    if (isLit) {
+                        if (num === 10) {
+                            lamp.className = 'h-7 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-extrabold border-2 bg-emerald-500 text-white border-emerald-600 shadow-sm';
+                        } else {
+                            lamp.className = 'h-7 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-extrabold border-2 bg-amber-400 text-amber-950 border-amber-500 shadow-sm';
+                        }
+                        if (num === newlyLitIndex) {
+                            lamp.classList.remove('lamp-active');
+                            void lamp.offsetWidth;
+                            lamp.classList.add('lamp-active');
+                        }
+                    } else {
+                        lamp.className = 'h-7 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-extrabold border-2 bg-slate-100 text-slate-400 border-slate-200';
+                        lamp.classList.remove('lamp-active');
+                    }
+                });
+            }
+
+            // ==========================================
+            // 6. 3つの条件（長さ・重さ・ふれはば）の統合コントロール
+            // ==========================================
+
+            /**
+             * スライダー背景の塗りつぶし割合とプリセットボタンの強調を最新状態に同期
+             */
+            function syncParameterControls() {
+                // 1. 長さ (0〜400cm)
+                els.lengthSlider.value = String(state.lengthCm);
+                if (document.activeElement !== els.lengthInput) {
+                    els.lengthInput.value = String(state.lengthCm);
+                }
+                const lenPct = (state.lengthCm / 400) * 100;
+                els.lengthSlider.style.background = `linear-gradient(to right, #0ea5e9 0%, #0ea5e9 ${lenPct}%, #bae6fd ${lenPct}%, #bae6fd 100%)`;
+
+                els.presetLengthBtns.forEach((btn) => {
+                    const target = Number(btn.dataset.presetLength);
+                    if (target === state.lengthCm) {
+                        btn.className = 'preset-btn px-2 py-1 rounded-lg bg-sky-500 text-white border border-sky-600 shadow-sm';
+                    } else {
+                        btn.className = 'preset-btn px-2 py-1 rounded-lg bg-white border border-sky-300 hover:bg-sky-100 text-sky-800';
+                    }
+                });
+
+                // 2. 重さ (0〜100g)
+                els.weightSlider.value = String(state.weightG);
+                if (document.activeElement !== els.weightInput) {
+                    els.weightInput.value = String(state.weightG);
+                }
+                els.weightZeroHint.classList.toggle('hidden', state.weightG !== 0);
+                const wPct = (state.weightG / 100) * 100;
+                els.weightSlider.style.background = `linear-gradient(to right, #f59e0b 0%, #f59e0b ${wPct}%, #fde68a ${wPct}%, #fde68a 100%)`;
+
+                els.presetWeightBtns.forEach((btn) => {
+                    const target = Number(btn.dataset.presetWeight);
+                    if (target === state.weightG) {
+                        btn.className = 'preset-btn px-2.5 py-1 rounded-lg bg-amber-500 text-white border border-amber-600 shadow-sm';
+                    } else {
+                        btn.className = 'preset-btn px-2.5 py-1 rounded-lg bg-white border border-amber-300 hover:bg-amber-100 text-amber-800';
+                    }
+                });
+
+                // 3. ふれはば (0〜90°)
+                els.angleSlider.value = String(state.angleDeg);
+                if (document.activeElement !== els.angleInput) {
+                    els.angleInput.value = String(state.angleDeg);
+                }
+                const aPct = (state.angleDeg / 90) * 100;
+                els.angleSlider.style.background = `linear-gradient(to right, #f43f5e 0%, #f43f5e ${aPct}%, #fecdd3 ${aPct}%, #fecdd3 100%)`;
+
+                els.presetAngleBtns.forEach((btn) => {
+                    const target = Number(btn.dataset.presetAngle);
+                    if (target === state.angleDeg) {
+                        btn.className = 'preset-btn px-2.5 py-1 rounded-lg bg-rose-500 text-white border border-rose-600 shadow-sm';
+                    } else {
+                        btn.className = 'preset-btn px-2.5 py-1 rounded-lg bg-white border border-rose-300 hover:bg-rose-100 text-rose-800';
+                    }
+                });
+
+                // 0cm・0°の注意バナー
+                if (state.lengthCm === 0) {
+                    els.zeroParamAlert.classList.remove('hidden');
+                    els.zeroParamAlertText.textContent = 'ながさが 0cm だよ！1cm いじょうに すると うごくよ。';
+                } else if (state.angleDeg === 0) {
+                    els.zeroParamAlert.classList.remove('hidden');
+                    els.zeroParamAlertText.textContent = 'ふれはば（かくど）が 0° だよ！1° いじょうに すると うごくよ。';
+                } else {
+                    els.zeroParamAlert.classList.add('hidden');
+                }
+            }
+
+            /**
+             * ふりこの長さ（0〜400cm）を変更する
+             */
+            function setLengthCm(newVal, options = { silent: false }) {
+                const clamped = clampInt(newVal, 0, 400, state.lengthCm);
+                if (clamped === state.lengthCm && !options.force) return;
+
+                state.lengthCm = clamped;
+                state.trail = [];
+
+                // 0cmになった場合は安全に停止
+                if (state.lengthCm === 0 && state.isRunning) {
+                    state.isRunning = false;
+                    state.omega = 0;
+                }
+
+                // 10往復完了後に条件を変えたら待機表示に戻す
+                if (state.isCompleted10) {
+                    state.isCompleted10 = false;
+                    state.simTime = 0;
+                    state.swingStartTime = 0;
+                    state.swingCount = 0;
+                    state.finalTenPeriod = null;
+                    state.finalOnePeriod = null;
+                    updateLamps(-1);
+                }
+
+                syncParameterControls();
+                updateAllReadouts();
+                if (!options.silent) playSound('click');
+            }
+
+            /**
+             * おもりの重さ（0〜100g）を変更する
+             */
+            function setWeightG(newVal, options = { silent: false }) {
+                const clamped = clampInt(newVal, 0, 100, state.weightG);
+                if (clamped === state.weightG && !options.force) return;
+
+                state.weightG = clamped;
+
+                // 10往復完了後に条件を変えたら待機表示に戻す
+                if (state.isCompleted10) {
+                    state.isCompleted10 = false;
+                    state.simTime = 0;
+                    state.swingStartTime = 0;
+                    state.swingCount = 0;
+                    state.finalTenPeriod = null;
+                    state.finalOnePeriod = null;
+                    updateLamps(-1);
+                }
+
+                syncParameterControls();
+                updateAllReadouts();
+                if (!options.silent) playSound('click');
+            }
+
+            /**
+             * ふれはば（0〜90°）を変更する
+             * 動いている最中に変更した場合は、その新しい角度から振り直す
+             */
+            function setAngleDeg(newVal, options = { silent: false, keepRunning: true }) {
+                const clamped = clampInt(newVal, 0, 90, state.angleDeg);
+                if (clamped === state.angleDeg && !options.force) return;
+
+                const wasRunning = state.isRunning;
+                state.angleDeg = clamped;
+                state.theta = state.releaseSign * ((state.angleDeg * Math.PI) / 180);
+                state.omega = 0;
+                state.simTime = 0;
+                state.swingStartTime = 0;
+                state.swingCount = 0;
+                state.isCompleted10 = false;
+                state.finalTenPeriod = null;
+                state.finalOnePeriod = null;
+                state.lastSinglePeriod = null;
+                state.trail = [];
+                updateLamps(-1);
+
+                // 動作中にふれはばを変えた場合は新しい角度からそのまま振り直す
+                if (wasRunning && options.keepRunning && state.lengthCm > 0 && state.angleDeg > 0) {
+                    state.isRunning = true;
+                } else if (state.angleDeg === 0) {
+                    state.isRunning = false;
+                }
+
+                syncParameterControls();
+                updateAllReadouts();
+                if (!options.silent) playSound('click');
+            }
+
+            // スライダーのリアルタイム入力イベント
+            els.lengthSlider.addEventListener('input', (e) => {
+                setLengthCm(e.target.value, { silent: true });
+            });
+            els.weightSlider.addEventListener('input', (e) => {
+                setWeightG(e.target.value, { silent: true });
+            });
+            els.angleSlider.addEventListener('input', (e) => {
+                setAngleDeg(e.target.value, { silent: true, keepRunning: true });
+            });
+
+            // 数値直接入力ボックスのイベント
+            function bindNumberInput(inputEl, min, max, getter, setter) {
+                inputEl.addEventListener('input', () => {
+                    const raw = inputEl.value.trim();
+                    if (raw === '') return;
+                    const num = Number(raw);
+                    if (Number.isFinite(num)) {
+                        const clamped = Math.min(max, Math.max(min, Math.round(num)));
+                        setter(clamped, { silent: true, keepRunning: true });
+                    }
+                });
+
+                const commitValue = () => {
+                    const raw = inputEl.value.trim();
+                    const clamped = raw === '' ? getter() : clampInt(raw, min, max, getter());
+                    inputEl.value = String(clamped);
+                    setter(clamped, { silent: false, force: true, keepRunning: true });
+                };
+
+                inputEl.addEventListener('change', commitValue);
+                inputEl.addEventListener('blur', commitValue);
+                inputEl.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        inputEl.blur();
+                    }
+                });
+            }
+
+            bindNumberInput(els.lengthInput, 0, 400, () => state.lengthCm, setLengthCm);
+            bindNumberInput(els.weightInput, 0, 100, () => state.weightG, setWeightG);
+            bindNumberInput(els.angleInput, 0, 90, () => state.angleDeg, setAngleDeg);
+
+            // 「－」「＋」1きざみボタン（単発クリック＋長押し連続調整対応）
+            els.stepBtns.forEach((btn) => {
+                const param = btn.dataset.param;
+                const delta = Number(btn.dataset.delta);
+                let holdTimeout = null;
+                let holdInterval = null;
+
+                const applyStep = (silent) => {
+                    if (param === 'length') {
+                        setLengthCm(state.lengthCm + delta, { silent });
+                    } else if (param === 'weight') {
+                        setWeightG(state.weightG + delta, { silent });
+                    } else if (param === 'angle') {
+                        setAngleDeg(state.angleDeg + delta, { silent, keepRunning: true });
+                    }
+                };
+
+                const clearHoldTimers = () => {
+                    if (holdTimeout) {
+                        clearTimeout(holdTimeout);
+                        holdTimeout = null;
+                    }
+                    if (holdInterval) {
+                        clearInterval(holdInterval);
+                        holdInterval = null;
+                    }
+                };
+
+                btn.addEventListener('pointerdown', (e) => {
+                    if (e.button !== undefined && e.button !== 0) return;
+                    applyStep(false);
+                    clearHoldTimers();
+                    holdTimeout = setTimeout(() => {
+                        holdInterval = setInterval(() => applyStep(true), 55);
+                    }, 380);
+                });
+
+                btn.addEventListener('pointerup', clearHoldTimers);
+                btn.addEventListener('pointerleave', clearHoldTimers);
+                btn.addEventListener('pointercancel', clearHoldTimers);
+            });
+
+            // プリセットボタン
+            els.presetLengthBtns.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    setLengthCm(Number(btn.dataset.presetLength));
+                });
+            });
+            els.presetWeightBtns.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    setWeightG(Number(btn.dataset.presetWeight));
+                });
+            });
+            els.presetAngleBtns.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    setAngleDeg(Number(btn.dataset.presetAngle), { keepRunning: true });
+                });
+            });
+
+            // ==========================================
+            // 7. 計測モード切替・スピード切替・メイン操作ボタン
+            // ==========================================
+            function resetPendulumState() {
+                state.isRunning = false;
+                state.isCompleted10 = false;
+                state.theta = state.releaseSign * ((state.angleDeg * Math.PI) / 180);
+                state.omega = 0;
+                state.simTime = 0;
+                state.swingStartTime = 0;
+                state.swingCount = 0;
+                state.finalTenPeriod = null;
+                state.finalOnePeriod = null;
+                state.lastSinglePeriod = null;
+                state.trail = [];
+                state.sparkles = [];
+                els.resultBoardCard.classList.remove('result-complete-glow');
+                updateLamps(-1);
+                updateAllReadouts();
+            }
+
+            // 計測モード切替（auto10 / manual10 / continuous）
+            els.modeBtns.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const nextMode = btn.dataset.mode;
+                    if (nextMode === state.measureMode) return;
+
+                    state.measureMode = nextMode;
+                    els.modeBtns.forEach((b) => {
+                        if (b.dataset.mode === nextMode) {
+                            b.className = 'mode-btn btn-3d py-2.5 px-2.5 rounded-2xl font-extrabold text-xs sm:text-sm border-2 text-center flex flex-col items-center justify-center gap-0.5 bg-teal-500 text-white border-teal-600 shadow-[0_3px_0_#0f766e]';
+                        } else {
+                            b.className = 'mode-btn btn-3d py-2.5 px-2.5 rounded-2xl font-extrabold text-xs sm:text-sm border-2 text-center flex flex-col items-center justify-center gap-0.5 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 shadow-[0_3px_0_#cbd5e1]';
+                        }
+                    });
+
+                    if (nextMode === 'auto10') {
+                        els.modeDescriptionText.textContent = '✨ 10おうふくすると 自動でタイマーがとまり、10おうふくと 1おうふくの じかんが わかるよ！';
+                        els.lampGuideTitle.textContent = '10おうふく カウントランプ';
+                        els.stopBtnLabel.textContent = 'とめる';
+                    } else if (nextMode === 'manual10') {
+                        els.modeDescriptionText.textContent = '⏱ 自分の目で 10おうふく 数えて「⏹ ストップ！」をおそう！ぴったり止められるかな？';
+                        els.lampGuideTitle.textContent = '10おうふく カウントランプ（こたえあわせ）';
+                        els.stopBtnLabel.textContent = 'ストップ！';
+                    } else {
+                        els.modeDescriptionText.textContent = '🔄 ずっと ゆれつづけて、1おうふくごとの じかんを リアルタイムに はかりつづけるよ！';
+                        els.lampGuideTitle.textContent = 'おうふく カウント（10かいごとに リセット表示）';
+                        els.stopBtnLabel.textContent = 'とめる';
+                    }
+
+                    playSound('click');
+                    resetPendulumState();
+                });
+            });
+
+            // スピード切替（1 / 2 / 4）
+            els.speedBtns.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const nextSpeed = Number(btn.dataset.speed);
+                    state.speedMultiplier = nextSpeed;
+
+                    els.speedBtns.forEach((b) => {
+                        if (Number(b.dataset.speed) === nextSpeed) {
+                            b.className = 'speed-btn btn-3d py-2 px-2 rounded-xl font-extrabold text-xs sm:text-sm border-2 bg-indigo-500 text-white border-indigo-600 shadow-[0_3px_0_#4338ca]';
+                        } else {
+                            b.className = 'speed-btn btn-3d py-2 px-2 rounded-xl font-extrabold text-xs sm:text-sm border-2 bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 shadow-[0_3px_0_#cbd5e1]';
+                        }
+                    });
+
+                    const labelMap = {
+                        1: 'スピード：ふつう（1ばい）',
+                        2: 'スピード：2ばいそく',
+                        4: 'スピード：4ばいそく'
+                    };
+                    els.speedIndicatorBadge.textContent = labelMap[nextSpeed] || 'スピード：ふつう（1ばい）';
+                    playSound('click');
+                });
+            });
+
+            // ▶ てを はなす
+            els.startBtn.addEventListener('click', () => {
+                if (state.lengthCm === 0) {
+                    showToast('📏', '「ふりこの ながさ」を 1cm いじょうに してね！');
+                    return;
+                }
+                if (state.angleDeg === 0) {
+                    showToast('📐', '「ふれはば（かくど）」を 1° いじょうに してね！');
+                    return;
+                }
+
+                // 10往復完了後に再度「てを はなす」を押した場合は新しい計測としてスタート
+                if (state.isCompleted10) {
+                    resetPendulumState();
+                }
+
+                ensureAudioContext();
+                playSound('click');
+                state.isRunning = true;
+                updateAllReadouts();
+            });
+
+            // ⏹ とめる / ストップ！
+            els.stopBtn.addEventListener('click', () => {
+                if (!state.isRunning) return;
+
+                state.isRunning = false;
+
+                // 「じぶんで ストップ」モードのときは、10往復以上していればストップ押下で計測結果を確定！
+                if (state.measureMode === 'manual10') {
+                    if (state.swingCount >= 10) {
+                        const roundedPair = calcOneSwingFromTen(state.simTime);
+                        state.isCompleted10 = true;
+                        state.finalTenPeriod = roundedPair.tenSec;
+                        state.finalOnePeriod = roundedPair.oneSec;
+
+                        if (state.swingCount === 10) {
+                            playSound('fanfare');
+                            showToast('🏆', `ピッタリ 10おうふく！すごい！（${state.finalTenPeriod.toFixed(1)} びょう）`);
+                        } else {
+                            playSound('click');
+                            showToast('⏱', `ストップ！じっさいは ${state.swingCount} おうふく だったよ（${state.finalTenPeriod.toFixed(1)} びょう）`);
+                        }
+                    } else {
+                        playSound('click');
+                        showToast('⏱', `ストップ！まだ 10おうふく していないよ（いま ${state.swingCount} おうふく）`);
+                    }
+                } else {
+                    playSound('click');
+                }
+
+                updateAllReadouts();
+            });
+
+            // ↺ リセット
+            els.resetBtn.addEventListener('click', () => {
+                playSound('click');
+                resetPendulumState();
+            });
+
+            // ==========================================
+            // 8. 物理シミュレーションエンジン（4次ルンゲ＝クッタ法）
+            // ==========================================
+            function getPivotAndBobScreenPos() {
+                const pivotX = canvasWidth * 0.5;
+                const pivotY = Math.max(46, canvasHeight * 0.12);
+                const maxRodPx = Math.min(canvasHeight - pivotY - 52, canvasWidth * 0.44);
+                const rodPx = (state.lengthCm / 400) * maxRodPx;
+                const bobX = pivotX + Math.sin(state.theta) * rodPx;
+                const bobY = pivotY + Math.cos(state.theta) * rodPx;
+                return { pivotX, pivotY, maxRodPx, rodPx, bobX, bobY };
+            }
+
+            /**
+             * 1往復完了時のフィードバック演出（ランプ点灯・バッジ・キラキラ・音）
+             */
+            function triggerSwingFeedback(countNum, x, y, isFinal10) {
+                const lampIdx = ((countNum - 1) % 10) + 1;
+                updateLamps(lampIdx);
+
+                // キラキラパーティクル生成
+                const burstCount = isFinal10 ? 28 : 12;
+                const colors = ['#f59e0b', '#10b981', '#0ea5e9', '#f43f5e', '#eab308'];
+                for (let i = 0; i < burstCount; i++) {
+                    const ang = (Math.PI * 2 * i) / burstCount + Math.random() * 0.3;
+                    const spd = (isFinal10 ? 110 : 65) + Math.random() * 95;
+                    state.sparkles.push({
+                        x,
+                        y,
+                        vx: Math.cos(ang) * spd,
+                        vy: Math.sin(ang) * spd - 35,
+                        size: (isFinal10 ? 6 : 4) + Math.random() * 4,
+                        color: colors[i % colors.length],
+                        life: 1.0
+                    });
+                }
+
+                // バッジポップアップ
+                els.oneSwingBadgeText.textContent = isFinal10
+                    ? '🎉 10おうふく かんりょう！ 🎉'
+                    : `${countNum}おうふく！`;
+                els.oneSwingBadge.classList.remove('hidden', 'animate-pop-badge');
+                void els.oneSwingBadge.offsetWidth;
+                els.oneSwingBadge.classList.add('animate-pop-badge');
+
+                if (state.badgeTimeoutId) clearTimeout(state.badgeTimeoutId);
+                state.badgeTimeoutId = setTimeout(() => {
+                    els.oneSwingBadge.classList.add('hidden');
+                }, 1150);
+
+                if (isFinal10) {
+                    els.resultBoardCard.classList.remove('result-complete-glow');
+                    void els.resultBoardCard.offsetWidth;
+                    els.resultBoardCard.classList.add('result-complete-glow');
+                    playSound('fanfare');
+                } else {
+                    playSound('swing', lampIdx);
+                }
+            }
+
+            /**
+             * 物理時間を dtReal 秒ぶん進める（倍速対応・1ms刻みRK4）
+             */
+            function advancePhysics(dtReal) {
+                if (!state.isRunning || state.lengthCm <= 0 || state.angleDeg <= 0) return;
+
+                const L = state.lengthCm / 100; // cm → m
+                const gOverL = GRAVITY / L;
+                const targetSimDt = dtReal * state.speedMultiplier;
+                const fixedStep = 0.001; // 1ミリ秒刻み
+                let remaining = targetSimDt;
+
+                while (remaining > 1e-9 && state.isRunning) {
+                    const h = Math.min(fixedStep, remaining);
+                    remaining -= h;
+
+                    const prevTheta = state.theta;
+                    const prevOmega = state.omega;
+                    const prevTime = state.simTime;
+
+                    // 4次ルンゲ＝クッタ法 (dθ/dt = ω, dω/dt = -(g/L)sinθ)
+                    const k1Theta = prevOmega;
+                    const k1Omega = -gOverL * Math.sin(prevTheta);
+
+                    const k2Theta = prevOmega + 0.5 * h * k1Omega;
+                    const k2Omega = -gOverL * Math.sin(prevTheta + 0.5 * h * k1Theta);
+
+                    const k3Theta = prevOmega + 0.5 * h * k2Omega;
+                    const k3Omega = -gOverL * Math.sin(prevTheta + 0.5 * h * k2Theta);
+
+                    const k4Theta = prevOmega + h * k3Omega;
+                    const k4Omega = -gOverL * Math.sin(prevTheta + h * k3Theta);
+
+                    const nextTheta = prevTheta + (h / 6) * (k1Theta + 2 * k2Theta + 2 * k3Theta + k4Theta);
+                    const nextOmega = prevOmega + (h / 6) * (k1Omega + 2 * k2Omega + 2 * k3Omega + k4Omega);
+                    const nextTime = prevTime + h;
+
+                    state.theta = nextTheta;
+                    state.omega = nextOmega;
+                    state.simTime = nextTime;
+
+                    // 1往復完了判定（スタート側に戻って角速度の符号が折り返す瞬間）
+                    const returnedToStartSide = state.releaseSign > 0
+                        ? (prevOmega > 0 && nextOmega <= 0 && nextTheta > 0)
+                        : (prevOmega < 0 && nextOmega >= 0 && nextTheta < 0);
+
+                    if (returnedToStartSide && nextTime > 0.05) {
+                        const denom = prevOmega - nextOmega;
+                        const frac = Math.abs(denom) > 1e-12 ? (prevOmega / denom) : 1;
+                        const exactCrossTime = prevTime + h * Math.min(1, Math.max(0, frac));
+
+                        state.swingCount += 1;
+                        state.lastSinglePeriod = exactCrossTime - state.swingStartTime;
+                        state.swingStartTime = exactCrossTime;
+
+                        const bobPos = getPivotAndBobScreenPos();
+
+                        // 【モード1：10おうふく じどう】10往復完了でピタッと自動停止！
+                        if (state.measureMode === 'auto10' && state.swingCount >= 10) {
+                            const roundedPair = calcOneSwingFromTen(exactCrossTime);
+                            state.simTime = exactCrossTime;
+                            state.isRunning = false;
+                            state.isCompleted10 = true;
+                            state.omega = 0;
+                            state.theta = state.releaseSign * ((state.angleDeg * Math.PI) / 180);
+                            state.finalTenPeriod = roundedPair.tenSec;
+                            state.finalOnePeriod = roundedPair.oneSec;
+
+                            triggerSwingFeedback(10, bobPos.bobX, bobPos.bobY, true);
+                            break;
+                        } else {
+                            triggerSwingFeedback(state.swingCount, bobPos.bobX, bobPos.bobY, false);
+                        }
+                    }
+                }
+
+                // 残像軌跡の記録
+                const pos = getPivotAndBobScreenPos();
+                state.trail.push({ x: pos.bobX, y: pos.bobY });
+                if (state.trail.length > 22) {
+                    state.trail.shift();
+                }
+
+                updateAllReadouts();
+            }
+
+            /**
+             * 画面上のタイム表示・ステータスバッジ・操作ボタン状態を更新
+             */
+            function updateAllReadouts() {
+                // モードごとの数値表示ロジック（すべて小数第2位を四捨五入し小数第1位まで統一）
+                if (state.measureMode === 'continuous') {
+                    els.primaryTimeLabel.textContent = '🔄 れんぞく けいそくモード';
+                    els.mainTimeCaption.textContent = `るいけい（いま ${state.swingCount} おうふく）`;
+                    els.perOneTimeCaption.innerHTML = '<span>ちょっきん 1おうふく</span>';
+                    els.tenSwingTimeDisplay.textContent = formatOneDecimal(state.simTime);
+
+                    if (state.lastSinglePeriod !== null) {
+                        els.oneSwingTimeDisplay.textContent = formatOneDecimal(state.lastSinglePeriod);
+                        els.oneSwingTimeDisplay.classList.remove('text-amber-400');
+                        els.oneSwingTimeDisplay.classList.add('text-amber-600');
+                        els.perOneRoundingNote.textContent = '（小数第2位を 四捨五入して 表示）';
+                    } else {
+                        els.oneSwingTimeDisplay.textContent = '--.-';
+                        els.oneSwingTimeDisplay.classList.remove('text-amber-600');
+                        els.oneSwingTimeDisplay.classList.add('text-amber-400');
+                        els.perOneRoundingNote.textContent = '1おうふくすると 表示されます';
+                    }
+                } else {
+                    // auto10 または manual10
+                    els.primaryTimeLabel.textContent = state.measureMode === 'auto10'
+                        ? '⏱ 10おうふくの じかん（じどう）'
+                        : '⏱ 10おうふくの じかん（じぶんでストップ）';
+                    els.mainTimeCaption.textContent = state.isCompleted10
+                        ? '✨ 10おうふく けってい！'
+                        : '10おうふく けいかじかん';
+                    els.perOneTimeCaption.innerHTML = '<span>1おうふくの じかん</span><span class="bg-amber-200 text-amber-900 text-[10px] px-1.5 rounded-md">÷10</span>';
+
+                    if (state.isCompleted10 && state.finalTenPeriod !== null && state.finalOnePeriod !== null) {
+                        els.tenSwingTimeDisplay.textContent = state.finalTenPeriod.toFixed(1);
+                        els.oneSwingTimeDisplay.textContent = state.finalOnePeriod.toFixed(1);
+                        els.oneSwingTimeDisplay.classList.remove('text-amber-400');
+                        els.oneSwingTimeDisplay.classList.add('text-amber-600');
+                        els.perOneRoundingNote.textContent = '（10おうふく ÷ 10 を 小数第2位で 四捨五入）';
+                    } else {
+                        els.tenSwingTimeDisplay.textContent = formatOneDecimal(state.simTime);
+                        els.oneSwingTimeDisplay.textContent = '--.-';
+                        els.oneSwingTimeDisplay.classList.remove('text-amber-600');
+                        els.oneSwingTimeDisplay.classList.add('text-amber-400');
+                        els.perOneRoundingNote.textContent = '10おうふくの じかんが でると 表示されます';
+                    }
+                }
+
+                // ステータスバッジと下部ガイド文
+                if (state.lengthCm === 0 || state.angleDeg === 0) {
+                    els.simStatusBadge.textContent = 'うごかないよ';
+                    els.simStatusBadge.className = 'text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700';
+                    els.liveTimerSub.innerHTML = state.lengthCm === 0
+                        ? '<span>📏</span><span>「ふりこの ながさ」を 1cm いじょうに してね！</span>'
+                        : '<span>📐</span><span>「ふれはば（かくど）」を 1° いじょうに してね！</span>';
+                } else if (state.isDragging) {
+                    els.simStatusBadge.textContent = 'かくど・ながさ ちょうせいちゅう';
+                    els.simStatusBadge.className = 'text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700';
+                    els.liveTimerSub.innerHTML = '<span>👆</span><span>はなしたら「▶ てを はなす」をおして けいそくスタート！</span>';
+                } else if (state.isCompleted10) {
+                    els.simStatusBadge.textContent = '10おうふく かんりょう！';
+                    els.simStatusBadge.className = 'text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-500 text-white';
+                    els.liveTimerSub.innerHTML = `<span>🎉</span><span>10おうふく <strong>${state.finalTenPeriod.toFixed(1)}びょう</strong>（1おうふく <strong>${state.finalOnePeriod.toFixed(1)}びょう</strong>）！「📝 ノートに きろく」をおそう！</span>`;
+                } else if (state.isRunning) {
+                    els.simStatusBadge.textContent = 'けいそくちゅう…';
+                    els.simStatusBadge.className = 'text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-amber-400 text-amber-950';
+                    els.liveTimerSub.innerHTML = state.measureMode === 'auto10'
+                        ? '<span>⏳</span><span>10おうふくすると 自動でとまるよ！（とちゅうでも じょうけんを変えられるよ）</span>'
+                        : '<span>👀</span><span>10おうふく 数えたら「⏹ ストップ！」をおそう！</span>';
+                } else {
+                    els.simStatusBadge.textContent = 'じゅんび OK';
+                    els.simStatusBadge.className = 'text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800';
+                    els.liveTimerSub.innerHTML = '<span>👉</span><span>「▶ てを はなす」をおすと 10おうふくの じかんを 自動ではかるよ！</span>';
+                }
+
+                // 操作ボタンの有効/無効状態（条件スライダー・ボタン類は常に有効）
+                els.startBtn.disabled = state.isRunning || state.lengthCm === 0 || state.angleDeg === 0;
+                els.stopBtn.disabled = !state.isRunning;
+            }
+
+            // ==========================================
+            // 9. キャンバスの描画とおもり直接ドラッグ操作
+            // ==========================================
+            function resizeCanvas() {
+                const rect = els.canvasContainer.getBoundingClientRect();
+                const dpr = Math.min(window.devicePixelRatio || 1, 2);
+                canvasWidth = Math.max(280, rect.width);
+                canvasHeight = Math.max(260, rect.height);
+                els.canvas.width = Math.round(canvasWidth * dpr);
+                els.canvas.height = Math.round(canvasHeight * dpr);
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            }
+
+            /**
+             * ポインター座標からふりこの長さ(0〜400cm)とふれはば(0〜90°)を計算して反映
+             */
+            function updatePendulumFromPointer(clientX, clientY) {
+                const rect = els.canvas.getBoundingClientRect();
+                const px = clientX - rect.left;
+                const py = clientY - rect.top;
+
+                const { pivotX, pivotY, maxRodPx } = getPivotAndBobScreenPos();
+                const dx = px - pivotX;
+                const dy = Math.max(0, py - pivotY); // 支点より上には行かない（0〜90°制限）
+
+                const distPx = Math.hypot(dx, dy);
+                const rawLengthCm = (distPx / Math.max(1, maxRodPx)) * 400;
+                const newLengthCm = clampInt(rawLengthCm, 0, 400, state.lengthCm);
+
+                let newAngleDeg = 0;
+                if (distPx > 6) {
+                    const rad = Math.atan2(Math.abs(dx), dy);
+                    newAngleDeg = clampInt((rad * 180) / Math.PI, 0, 90, state.angleDeg);
+                    if (Math.abs(dx) >= 2) {
+                        state.releaseSign = dx >= 0 ? 1 : -1;
+                    }
+                }
+
+                state.lengthCm = newLengthCm;
+                state.angleDeg = newAngleDeg;
+                state.theta = state.releaseSign * ((state.angleDeg * Math.PI) / 180);
+                state.omega = 0;
+                state.simTime = 0;
+                state.swingStartTime = 0;
+                state.swingCount = 0;
+                state.isCompleted10 = false;
+                state.finalTenPeriod = null;
+                state.finalOnePeriod = null;
+                state.lastSinglePeriod = null;
+                state.trail = [];
+                updateLamps(-1);
+                syncParameterControls();
+                updateAllReadouts();
+            }
+
+            // キャンバス上でのドラッグイベント（おもり付近判定＋マウス・タッチ両対応）
+            els.canvas.addEventListener('pointerdown', (e) => {
+                if (e.button !== undefined && e.button !== 0) return;
+
+                const rect = els.canvas.getBoundingClientRect();
+                const px = e.clientX - rect.left;
+                const py = e.clientY - rect.top;
+                const { bobX, bobY } = getPivotAndBobScreenPos();
+
+                // おもり付近（タッチでも掴みやすい広めの半径90px以内）を掴んだらドラッグ開始
+                if (Math.hypot(px - bobX, py - bobY) <= 90) {
+                    state.isDragging = true;
+                    state.isRunning = false;
+                    els.canvas.style.cursor = 'grabbing';
+                    try {
+                        els.canvas.setPointerCapture(e.pointerId);
+                    } catch (err) {}
+                    updatePendulumFromPointer(e.clientX, e.clientY);
+                    playSound('click');
+                }
+            });
+
+            els.canvas.addEventListener('pointermove', (e) => {
+                const rect = els.canvas.getBoundingClientRect();
+                const px = e.clientX - rect.left;
+                const py = e.clientY - rect.top;
+
+                if (state.isDragging) {
+                    updatePendulumFromPointer(e.clientX, e.clientY);
+                    return;
+                }
+
+                const { bobX, bobY } = getPivotAndBobScreenPos();
+                els.canvas.style.cursor = Math.hypot(px - bobX, py - bobY) <= 90 ? 'grab' : 'default';
+            });
+
+            const endCanvasDrag = (e) => {
+                if (!state.isDragging) return;
+                state.isDragging = false;
+                els.canvas.style.cursor = 'grab';
+                try {
+                    if (e && e.pointerId !== undefined) {
+                        els.canvas.releasePointerCapture(e.pointerId);
+                    }
+                } catch (err) {}
+                updateAllReadouts();
+            };
+
+            els.canvas.addEventListener('pointerup', endCanvasDrag);
+            els.canvas.addEventListener('pointercancel', endCanvasDrag);
+
+            /**
+             * キャンバスにふりこ実験装置を描画する
+             */
+            function renderCanvas() {
+                ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+                const { pivotX, pivotY, maxRodPx, rodPx, bobX, bobY } = getPivotAndBobScreenPos();
+
+                // 1. 方眼紙風の薄いグリッド
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
+                ctx.lineWidth = 1;
+                const gridStep = 28;
+                for (let x = pivotX % gridStep; x < canvasWidth; x += gridStep) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, canvasHeight);
+                    ctx.stroke();
+                }
+                for (let y = pivotY % gridStep; y < canvasHeight; y += gridStep) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(canvasWidth, y);
+                    ctx.stroke();
+                }
+
+                // 2. 左側の長さスケール（0cm〜400cm）
+                const scaleX = 24;
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(scaleX, pivotY);
+                ctx.lineTo(scaleX, pivotY + maxRodPx);
+                ctx.stroke();
+
+                ctx.font = '700 11px "M PLUS Rounded 1c", sans-serif';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                [0, 100, 200, 300, 400].forEach((cm) => {
+                    const sy = pivotY + (cm / 400) * maxRodPx;
+                    ctx.strokeStyle = cm === state.lengthCm ? '#0284c7' : '#94a3b8';
+                    ctx.lineWidth = cm === state.lengthCm ? 2.5 : 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(scaleX - 5, sy);
+                    ctx.lineTo(scaleX + 6, sy);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#64748b';
+                    ctx.fillText(`${cm}cm`, scaleX + 10, sy);
+                });
+
+                // 現在の長さマーカー
+                const curLenY = pivotY + rodPx;
+                ctx.fillStyle = '#0284c7';
+                ctx.beginPath();
+                ctx.moveTo(scaleX + 5, curLenY);
+                ctx.lineTo(scaleX + 12, curLenY - 5);
+                ctx.lineTo(scaleX + 12, curLenY + 5);
+                ctx.closePath();
+                ctx.fill();
+
+                // 3. 分度器（0°〜90°の角度ガイド）
+                const protractorR = Math.min(115, maxRodPx * 0.42);
+                ctx.save();
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(pivotX, pivotY, protractorR, 0, Math.PI);
+                ctx.stroke();
+
+                // 10°ごとの目盛り線と主要ラベル
+                for (let deg = -90; deg <= 90; deg += 10) {
+                    const rad = (deg * Math.PI) / 180;
+                    const isMajor = deg % 30 === 0;
+                    const innerR = isMajor ? protractorR - 12 : protractorR - 6;
+                    ctx.strokeStyle = deg === 0 ? 'rgba(14, 165, 233, 0.55)' : 'rgba(148, 163, 184, 0.45)';
+                    ctx.lineWidth = isMajor ? 1.8 : 1;
+                    ctx.beginPath();
+                    ctx.moveTo(pivotX + Math.sin(rad) * innerR, pivotY + Math.cos(rad) * innerR);
+                    ctx.lineTo(pivotX + Math.sin(rad) * protractorR, pivotY + Math.cos(rad) * protractorR);
+                    ctx.stroke();
+
+                    if (isMajor) {
+                        const labelR = protractorR + 14;
+                        ctx.fillStyle = '#64748b';
+                        ctx.font = '700 11px "M PLUS Rounded 1c", sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(`${Math.abs(deg)}°`, pivotX + Math.sin(rad) * labelR, pivotY + Math.cos(rad) * labelR);
+                    }
+                }
+
+                // 真下基準線（0°）
+                ctx.setLineDash([4, 4]);
+                ctx.strokeStyle = 'rgba(14, 165, 233, 0.5)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(pivotX, pivotY);
+                ctx.lineTo(pivotX, pivotY + maxRodPx + 12);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 設定されたふれはばの扇形ハイライト
+                if (state.angleDeg > 0 && rodPx > 0) {
+                    const maxRad = (state.angleDeg * Math.PI) / 180;
+                    ctx.fillStyle = 'rgba(244, 63, 94, 0.08)';
+                    ctx.beginPath();
+                    ctx.moveTo(pivotX, pivotY);
+                    ctx.arc(pivotX, pivotY, rodPx, Math.PI / 2 - maxRad, Math.PI / 2 + maxRad);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // 左右の最高到達点のガイド点線
+                    [-1, 1].forEach((s) => {
+                        const gx = pivotX + Math.sin(s * maxRad) * rodPx;
+                        const gy = pivotY + Math.cos(s * maxRad) * rodPx;
+                        ctx.setLineDash([3, 3]);
+                        ctx.strokeStyle = 'rgba(244, 63, 94, 0.35)';
+                        ctx.lineWidth = 1.5;
+                        ctx.beginPath();
+                        ctx.moveTo(pivotX, pivotY);
+                        ctx.lineTo(gx, gy);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    });
+                }
+                ctx.restore();
+
+                // 4. 残像軌跡（モーション・トレイル）の描画
+                if (state.trail.length > 1 && state.isRunning) {
+                    for (let i = 0; i < state.trail.length - 1; i++) {
+                        const pt = state.trail[i];
+                        const ratio = (i + 1) / state.trail.length;
+                        ctx.save();
+                        ctx.globalAlpha = ratio * 0.25;
+                        ctx.fillStyle = '#f59e0b';
+                        ctx.beginPath();
+                        ctx.arc(pt.x, pt.y, 4 + ratio * 6, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                }
+
+                // 5. 上部の実験スタンド（横棒・支柱・支点）
+                const barWidth = Math.min(260, canvasWidth * 0.52);
+                ctx.fillStyle = '#475569';
+                ctx.beginPath();
+                ctx.roundRect(pivotX - barWidth / 2, pivotY - 16, barWidth, 12, 6);
+                ctx.fill();
+
+                // 支点の留め具
+                ctx.fillStyle = '#0f766e';
+                ctx.beginPath();
+                ctx.arc(pivotX, pivotY, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(pivotX, pivotY, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 6. ふりこの糸
+                if (rodPx > 0) {
+                    ctx.strokeStyle = '#334155';
+                    ctx.lineWidth = 3;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(pivotX, pivotY);
+                    ctx.lineTo(bobX, bobY);
+                    ctx.stroke();
+                }
+
+                // 7. おもり（0gのときはクリップ、1〜100gは重さに応じて大きさが変わるおもり）
+                ctx.save();
+                ctx.translate(bobX, bobY);
+                ctx.rotate(-state.theta);
+
+                if (state.weightG === 0) {
+                    // 0g：銀色のゼムクリップを描画
+                    ctx.strokeStyle = '#64748b';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.roundRect(-7, -2, 14, 24, 7);
+                    ctx.stroke();
+
+                    ctx.strokeStyle = '#94a3b8';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.roundRect(-3.5, 3, 7, 15, 3.5);
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#475569';
+                    ctx.font = '800 11px "M PLUS Rounded 1c", sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('0g', 0, 32);
+                } else {
+                    // 1g〜100g：重さに応じた半径（15px 〜 32px）
+                    const bobRadius = 15 + (state.weightG / 100) * 17;
+
+                    // 影
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.14)';
+                    ctx.beginPath();
+                    ctx.arc(3, 5, bobRadius, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // おもり本体（立体的なゴールド〜アンバーグラデーション）
+                    const grad = ctx.createRadialGradient(
+                        -bobRadius * 0.3,
+                        -bobRadius * 0.3,
+                        bobRadius * 0.15,
+                        0,
+                        0,
+                        bobRadius
+                    );
+                    grad.addColorStop(0, '#fde68a');
+                    grad.addColorStop(0.55, '#f59e0b');
+                    grad.addColorStop(1, '#b45309');
+
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, bobRadius, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.strokeStyle = '#92400e';
+                    ctx.lineWidth = 2.5;
+                    ctx.stroke();
+
+                    // 重さテキスト
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = `800 ${bobRadius >= 22 ? 13 : 11}px "M PLUS Rounded 1c", sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(`${state.weightG}g`, 0, 1);
+                }
+                ctx.restore();
+
+                // 8. ドラッグ中のリアルタイム数値吹き出し
+                if (state.isDragging) {
+                    const tipText = `ながさ ${state.lengthCm}cm ／ かくど ${state.angleDeg}°`;
+                    ctx.font = '800 13px "M PLUS Rounded 1c", sans-serif';
+                    const textW = ctx.measureText(tipText).width;
+                    const boxW = textW + 24;
+                    const boxH = 30;
+                    const boxX = Math.min(canvasWidth - boxW - 10, Math.max(10, bobX - boxW / 2));
+                    const boxY = Math.max(12, bobY - 58);
+
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+                    ctx.beginPath();
+                    ctx.roundRect(boxX, boxY, boxW, boxH, 10);
+                    ctx.fill();
+
+                    ctx.fillStyle = '#fde047';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(tipText, boxX + boxW / 2, boxY + boxH / 2);
+                }
+
+                // 9. キラキラパーティクル更新＆描画
+                for (let i = state.sparkles.length - 1; i >= 0; i--) {
+                    const sp = state.sparkles[i];
+                    sp.x += sp.vx * 0.016;
+                    sp.y += sp.vy * 0.016;
+                    sp.vy += 140 * 0.016;
+                    sp.life -= 0.025;
+
+                    if (sp.life <= 0) {
+                        state.sparkles.splice(i, 1);
+                        continue;
+                    }
+
+                    ctx.save();
+                    ctx.globalAlpha = Math.max(0, sp.life);
+                    ctx.fillStyle = sp.color;
+                    ctx.beginPath();
+                    ctx.arc(sp.x, sp.y, sp.size * sp.life, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            // ==========================================
+            // 10. じっけんノート（比較表）への記録と気づきサポート
+            // ==========================================
+            els.recordBtn.addEventListener('click', () => {
+                if (state.lengthCm === 0 || state.angleDeg === 0) {
+                    showToast('📢', state.lengthCm === 0 ? 'ながさを 1cm いじょうに してね！' : 'ふれはばを 1° いじょうに してね！');
+                    return;
+                }
+
+                let tenSec = null;
+                let oneSec = null;
+
+                if (state.measureMode === 'auto10' || state.measureMode === 'manual10') {
+                    if (!state.isCompleted10 || state.finalTenPeriod === null) {
+                        showToast('⏱', state.measureMode === 'auto10'
+                            ? 'まず「▶ てを はなす」をおして 10おうふく はかろう！'
+                            : '10おうふく 数えて「⏹ ストップ！」をおしてから きろくしよう！');
+                        return;
+                    }
+                    tenSec = state.finalTenPeriod;
+                    oneSec = state.finalOnePeriod;
+                } else {
+                    if (state.lastSinglePeriod === null) {
+                        showToast('⏱', 'まず「▶ てを はなす」をおして 1おうふく以上 動かそう！');
+                        return;
+                    }
+                    const roundedPair = calcOneSwingFromTen(state.lastSinglePeriod * 10);
+                    tenSec = roundedPair.tenSec;
+                    oneSec = roundedPair.oneSec;
+                }
+
+                const entry = {
+                    id: Date.now() + Math.random(),
+                    lengthCm: state.lengthCm,
+                    weightG: state.weightG,
+                    angleDeg: state.angleDeg,
+                    tenPeriodSec: tenSec,
+                    onePeriodSec: oneSec
+                };
+
+                state.records.push(entry);
+                resetClearConfirm();
+                renderRecordsTable();
+                updateDiscoveryHint();
+                playSound('record');
+                showToast('📝', `ノートに きろくしたよ！（10おうふく ${entry.tenPeriodSec.toFixed(1)}びょう / 1おうふく ${entry.onePeriodSec.toFixed(1)}びょう）`);
+            });
+
+            function resetClearConfirm() {
+                state.clearConfirmPending = false;
+                if (state.clearConfirmTimerId) {
+                    clearTimeout(state.clearConfirmTimerId);
+                    state.clearConfirmTimerId = null;
+                }
+                els.clearRecordsBtn.textContent = '🗑️ ノートを ぜんぶ けす';
+                els.clearRecordsBtn.className = 'btn-3d px-3.5 py-2 rounded-xl font-extrabold text-xs sm:text-sm bg-rose-50 hover:bg-rose-100 text-rose-700 border-2 border-rose-200 shadow-[0_2px_0_#fecdd3]';
+            }
+
+            els.clearRecordsBtn.addEventListener('click', () => {
+                if (!state.clearConfirmPending) {
+                    state.clearConfirmPending = true;
+                    els.clearRecordsBtn.textContent = '⚠️ ほんとうに ぜんぶ けす？（もう1かい おす）';
+                    els.clearRecordsBtn.className = 'btn-3d px-3.5 py-2 rounded-xl font-extrabold text-xs sm:text-sm bg-rose-500 text-white border-2 border-rose-600 shadow-[0_2px_0_#be123c]';
+                    state.clearConfirmTimerId = setTimeout(resetClearConfirm, 4000);
+                } else {
+                    state.records = [];
+                    resetClearConfirm();
+                    renderRecordsTable();
+                    updateDiscoveryHint();
+                    playSound('click');
+                    showToast('🗑️', 'じっけんノートを ぜんぶ けしたよ！');
+                }
+            });
+
+            function updateDiscoveryHint() {
+                if (state.records.length < 2) {
+                    els.discoveryHintText.innerHTML = `
+                        <span class="underline decoration-amber-400 decoration-2 font-extrabold">1つの じょうけんだけ</span> 変えて 10おうふく くらべてみよう！<br>
+                        （れい：ながさと おもさは そのままにして、「ふれはば」だけ 10° → 30° → 60° と かえてみよう！）
+                    `;
+                    return;
+                }
+
+                const last = state.records[state.records.length - 1];
+                const prev = state.records[state.records.length - 2];
+
+                const diffLen = last.lengthCm !== prev.lengthCm;
+                const diffWeight = last.weightG !== prev.weightG;
+                const diffAngle = last.angleDeg !== prev.angleDeg;
+                const changedCount = (diffLen ? 1 : 0) + (diffWeight ? 1 : 0) + (diffAngle ? 1 : 0);
+
+                if (changedCount > 1) {
+                    els.discoveryHintText.innerHTML = '💡 <strong>2つ いじょうの じょうけん</strong>が 同時に かわっているよ！どれが げんいんか わかるように、<strong>1つだけ</strong> かえて くらべてみよう！';
+                } else if (diffLen) {
+                    els.discoveryHintText.innerHTML = '📏 <strong>「ふりこの ながさ」</strong>だけ かえて くらべたね！ながさが ながくなると、1おうふくする じかんは どう かわったかな？';
+                } else if (diffWeight) {
+                    els.discoveryHintText.innerHTML = '⚖️ <strong>「おもりの おもさ」</strong>だけ かえて くらべたね！おもさを かえても、1おうふくする じかんは どう だったかな？';
+                } else if (diffAngle) {
+                    els.discoveryHintText.innerHTML = '📐 <strong>「ふれはば」</strong>だけ かえて くらべたね！ふれはばを かえると、1おうふくする じかんは どう だったかな？';
+                }
+            }
+
+            function renderRecordsTable() {
+                els.recordsBody.innerHTML = '';
+
+                if (state.records.length === 0) {
+                    els.clearRecordsBtn.classList.add('hidden');
+                    els.recordsBody.innerHTML = `
+                        <tr id="emptyRecordsRow">
+                            <td colspan="7" class="py-8 px-4 text-center text-slate-400">
+                                <div class="text-3xl mb-1.5">🔬</div>
+                                <div class="text-sm sm:text-base font-extrabold text-slate-500">まだ きろくが ありません</div>
+                                <div class="text-xs sm:text-sm mt-1">10おうふく はかって、「📝 ノートに きろく」をおしてみよう！</div>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                els.clearRecordsBtn.classList.remove('hidden');
+                const maxTenSec = Math.max(1, ...state.records.map((r) => r.tenPeriodSec));
+
+                state.records.forEach((rec, index) => {
+                    const barWidthPct = Math.min(100, Math.max(12, Math.round((rec.tenPeriodSec / maxTenSec) * 100)));
+                    const tr = document.createElement('tr');
+                    tr.className = 'row-enter hover:bg-indigo-50/40 transition-colors';
+                    tr.innerHTML = `
+                        <td class="py-3 px-3 text-center font-extrabold text-indigo-700">${index + 1}</td>
+                        <td class="py-3 px-3 font-extrabold text-sky-700 tabular-nums">${rec.lengthCm} cm</td>
+                        <td class="py-3 px-3 font-extrabold text-amber-700 tabular-nums">${rec.weightG} g</td>
+                        <td class="py-3 px-3 font-extrabold text-rose-700 tabular-nums">${rec.angleDeg} °</td>
+                        <td class="py-3 px-3">
+                            <div class="flex items-center gap-2">
+                                <span class="text-base sm:text-lg font-extrabold text-teal-700 tabular-nums shrink-0">
+                                    ${rec.tenPeriodSec.toFixed(1)} <span class="text-xs font-bold">秒</span>
+                                </span>
+                                <div class="hidden md:block flex-1 max-w-[110px] h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                                    <div class="h-full bg-gradient-to-r from-teal-400 to-emerald-500 rounded-full" style="width: ${barWidthPct}%"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-3 px-3">
+                            <span class="inline-block bg-amber-100/80 border border-amber-300 text-amber-900 px-2.5 py-0.5 rounded-xl text-base sm:text-lg font-extrabold tabular-nums">
+                                ${rec.onePeriodSec.toFixed(1)} <span class="text-xs font-bold">秒</span>
+                            </span>
+                        </td>
+                        <td class="py-3 px-3 text-center">
+                            <button type="button" data-delete-id="${rec.id}"
+                                class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 font-extrabold text-sm transition-colors"
+                                aria-label="この きろくを けす">✕</button>
+                        </td>
+                    `;
+
+                    const delBtn = tr.querySelector('[data-delete-id]');
+                    delBtn.addEventListener('click', () => {
+                        state.records = state.records.filter((item) => item.id !== rec.id);
+                        playSound('click');
+                        renderRecordsTable();
+                        updateDiscoveryHint();
+                    });
+
+                    els.recordsBody.appendChild(tr);
+                });
+            }
+
+            // ==========================================
+            // 11. メインアニメーションループと初期化
+            // ==========================================
+            let lastFramePerf = performance.now();
+
+            function mainLoop(nowPerf) {
+                const dt = Math.min(0.05, Math.max(0, (nowPerf - lastFramePerf) / 1000));
+                lastFramePerf = nowPerf;
+
+                if (state.isRunning && dt > 0) {
+                    advancePhysics(dt);
+                }
+
+                renderCanvas();
+                requestAnimationFrame(mainLoop);
+            }
+
+            window.addEventListener('resize', () => {
+                resizeCanvas();
+                renderCanvas();
+            });
+
+            if (typeof ResizeObserver !== 'undefined') {
+                const ro = new ResizeObserver(() => {
+                    resizeCanvas();
+                    renderCanvas();
+                });
+                ro.observe(els.canvasContainer);
+            }
+
+            window.onload = function () {
+                initLampElements();
+                resizeCanvas();
+                syncParameterControls();
+                resetPendulumState();
+                lastFramePerf = performance.now();
+                requestAnimationFrame(mainLoop);
+            };
+        })();
+    </script>
+</body>
+</html>
